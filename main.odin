@@ -9,6 +9,7 @@ main :: proc() {
 	rl.SetTargetFPS(60)
 
 	game := game_init()
+	defer game_shutdown(&game)
 
 	for !rl.WindowShouldClose() {
 		rl.BeginDrawing()
