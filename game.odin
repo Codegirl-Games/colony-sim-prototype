@@ -107,7 +107,7 @@ game_handle_input :: proc(g: ^Game) {
 		wx, wy := screen_to_world(&g.camera, mx, my)
 		tx, ty := world_to_tile(wx, wy)
 		if tile_in_bounds(&g.tilemap, tx, ty) {
-			entity_set_move_target(&g.world.entities, g.player_colonist, {tx, ty})
+			entity_set_move_target(&g.world.entities, g.player_colonist, &g.tilemap, {tx, ty})
 			g.selection.active = true
 			g.selection.tile = {tx, ty}
 		}

@@ -14,6 +14,8 @@ Entity_World :: struct {
 	move_state:      [MAX_ENTITIES]Move_State,
 	move_target:     [MAX_ENTITIES]Tile_Coord,
 	visual_position: [MAX_ENTITIES]rl.Vector2,
+	path:            [MAX_ENTITIES]Path,
+	path_index:      [MAX_ENTITIES]int,
 }
 
 Move_State :: enum {
@@ -68,17 +70,29 @@ tile_center_world :: proc(t: Tile_Coord) -> rl.Vector2 {
 	}
 }
 
-entity_set_move_target :: proc(ew: ^Entity_World, e: Entity, target: Tile_Coord) -> bool {
+entity_set_move_target :: proc(
+	ew: ^Entity_World,
+	e: Entity,
+	tm: ^Tilemap,
+	target: Tile_Coord,
+) -> bool {
 	i := entity_index(e)
-	if i < 0 || !ew.active[i] {return false}
-
-	if ew.position[i] == target {
-		ew.move_state[i] = .Idle
-		return true
+	if i < 0 || !ew.active[i] {
+		return false
 	}
 
-	ew.move_target[i] = target
-	ew.move_state[i] = .Moving
+	start := ew.position[i]
+	if !pathfind_bfs(tm, start, target, &ew.path[i]) {
+		return false
+	}
+	ew.path_index[i] = 1
+	if ew.path[i].count <= 1 {
+		ew.move_state[i] = .Idle
+	} else {
+		ew.move_state[i] = .Moving
+		ew.move_target[i] = target
+	}
+
 	return true
 }
 
@@ -97,12 +111,14 @@ entity_update_movement :: proc(ew: ^Entity_World, dt: f32) {
 			continue
 		}
 
-		next := pos
-		if pos.x != target.x {
-			next.x += pos.x < target.x ? 1 : -1
-		} else if pos.y != target.y {
-			next.y += pos.y < target.y ? 1 : -1
+		p := &ew.path[i]
+
+		if ew.path_index[i] >= p.count {
+			ew.move_state[i] = .Idle
+			continue
 		}
+
+		next := p.tiles[ew.path_index[i]]
 
 		goal := tile_center_world(next)
 		vp := ew.visual_position[i]
@@ -114,11 +130,22 @@ entity_update_movement :: proc(ew: ^Entity_World, dt: f32) {
 		if dist < 1.0 {
 			ew.position[i] = next
 			ew.visual_position[i] = goal
+			ew.path_index[i] += 1
+
+			if ew.path_index[i] >= p.count {
+				ew.move_state[i] = .Idle
+			}
 		} else {
 			step := speed * dt
 			if step >= dist {
 				ew.visual_position[i] = goal
 				ew.position[i] = next
+				ew.path_index[i] += 1
+
+				if ew.path_index[i] >= p.count {
+					ew.move_state[i] = .Idle
+				}
+
 			} else {
 				ew.visual_position[i].x += dx / dist * step
 				ew.visual_position[i].y += dy / dist * step

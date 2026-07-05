@@ -9,11 +9,16 @@ Tilemap :: struct {
 }
 
 tilemap_init :: proc() -> Tilemap {
-	return Tilemap {
-		width = MAP_WIDTH,
+	tm := Tilemap {
+		width  = MAP_WIDTH,
 		height = MAP_HEIGHT,
-		tiles = make([]u8, MAP_WIDTH * MAP_HEIGHT),
+		tiles  = make([]u8, MAP_WIDTH * MAP_HEIGHT),
 	}
+	// test wall
+	for x in 15 ..< 25 {
+		tm.tiles[tile_index(&tm, x, 12)] = 1
+	}
+	return tm
 }
 
 tilemap_destroy :: proc(tilemap: ^Tilemap) {
@@ -72,5 +77,13 @@ tilemap_draw :: proc(tilemap: ^Tilemap, camera: ^Camera2D) {
 			rl.DrawRectangleLines(i32(sx), i32(sy), i32(tile_px), i32(tile_px), {40, 50, 38, 255})
 		}
 	}
+}
+
+
+tile_walkable :: proc(tilemap: ^Tilemap, x, y: int) -> bool {
+	if !tile_in_bounds(tilemap, x, y) {return false}
+	idx := tile_index(tilemap, x, y)
+
+	return tilemap.tiles[idx] != 1
 }
 

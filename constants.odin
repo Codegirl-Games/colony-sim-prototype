@@ -13,3 +13,7 @@ INVALID_ENTITY :: Entity(0)
 
 MOVE_SPEED :: 4.0
 
+MAX_PATH :: 512
+
+NEIGHBOR_OFFSET :: [4]Tile_Coord{{0, -1}, {0, 1}, {1, 0}, {-1, 0}}
+
