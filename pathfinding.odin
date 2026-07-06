@@ -1,15 +1,14 @@
 package main
 
 Path :: struct {
-	tiles: []Tile_Coord,
+	tiles: [dynamic]Tile_Coord,
 	count: int,
 }
 
 max_path_int :: 1_000_000_000
 
 path_clear :: proc(path: ^Path) {
-	delete(path.tiles)
-	path.tiles = nil
+	resize(&path.tiles, 0)
 	path.count = 0
 }
 
@@ -17,7 +16,7 @@ pathfind_bfs :: proc(tilemap: ^Tilemap, start, goal: Tile_Coord, path: ^Path) ->
 	path_clear(path)
 
 	if start == goal {
-		path.tiles = make([]Tile_Coord, 1) // allocate because path_clear set tiles to nil
+		resize(&path.tiles, 1)
 		path.tiles[0] = start
 		path.count = 1
 		return true
@@ -71,30 +70,10 @@ pathfind_bfs :: proc(tilemap: ^Tilemap, start, goal: Tile_Coord, path: ^Path) ->
 		return false
 	}
 
-	rev: [MAX_PATH]Tile_Coord
-	rev_count := 0
-	cur := goal
-	for {
-		rev[rev_count] = cur
-		rev_count += 1
-		if cur == start {
-			break
-		}
-		cur = parents[cur.y][cur.x]
-		if rev_count >= MAX_PATH {
-			return false
-		}
-	}
-
-	path.tiles = make([]Tile_Coord, rev_count)
-	path.count = rev_count
-	for i in 0 ..< rev_count {
-		path.tiles[i] = rev[rev_count - 1 - i]
-	}
-	return true
+	return path_reconstruct(&parents, start, goal, path)
 }
 
-heuristic :: proc(a, b: Tile_Coord) -> int {
+manhattan :: proc(a, b: Tile_Coord) -> int {
 	return abs(a.x - b.x) + abs(a.y - b.y)
 }
 
@@ -102,7 +81,7 @@ pathfind_astar :: proc(tm: ^Tilemap, start, goal: Tile_Coord, path: ^Path) -> bo
 	path_clear(path)
 
 	if start == goal {
-		path.tiles = make([]Tile_Coord, 1)
+		resize(&path.tiles, 1)
 		path.tiles[0] = start
 		path.count = 1
 		return true
@@ -117,7 +96,7 @@ pathfind_astar :: proc(tm: ^Tilemap, start, goal: Tile_Coord, path: ^Path) -> bo
 	g_score: [MAP_HEIGHT][MAP_WIDTH]int
 	f_score: [MAP_HEIGHT][MAP_WIDTH]int
 	parents: [MAP_HEIGHT][MAP_WIDTH]Tile_Coord
-	in_open: [MAP_HEIGHT][MAP_WIDTH]bool
+	open: [MAP_HEIGHT][MAP_WIDTH]bool
 	closed: [MAP_HEIGHT][MAP_WIDTH]bool
 
 	for y in 0 ..< h {
@@ -129,9 +108,9 @@ pathfind_astar :: proc(tm: ^Tilemap, start, goal: Tile_Coord, path: ^Path) -> bo
 	}
 
 	g_score[start.y][start.x] = 0
-	f_score[start.y][start.x] = heuristic(start, goal)
+	f_score[start.y][start.x] = manhattan(start, goal)
 	parents[start.y][start.x] = start
-	in_open[start.y][start.x] = true
+	open[start.y][start.x] = true
 
 	open_list: [MAP_WIDTH * MAP_HEIGHT]Tile_Coord
 	open_count := 1
@@ -153,7 +132,7 @@ pathfind_astar :: proc(tm: ^Tilemap, start, goal: Tile_Coord, path: ^Path) -> bo
 		current := open_list[best_i]
 		open_list[best_i] = open_list[open_count - 1]
 		open_count -= 1
-		in_open[current.y][current.x] = false
+		open[current.y][current.x] = false
 		closed[current.y][current.x] = true
 
 		if current == goal {
@@ -177,10 +156,10 @@ pathfind_astar :: proc(tm: ^Tilemap, start, goal: Tile_Coord, path: ^Path) -> bo
 			if tentative < g_score[ny][nx] {
 				parents[ny][nx] = current
 				g_score[ny][nx] = tentative
-				f_score[ny][nx] = tentative + heuristic({nx, ny}, goal)
+				f_score[ny][nx] = tentative + manhattan({nx, ny}, goal)
 
-				if !in_open[ny][nx] {
-					in_open[ny][nx] = true
+				if !open[ny][nx] {
+					open[ny][nx] = true
 					open_list[open_count] = {nx, ny}
 					open_count += 1
 				}
@@ -191,26 +170,40 @@ pathfind_astar :: proc(tm: ^Tilemap, start, goal: Tile_Coord, path: ^Path) -> bo
 		return false
 	}
 
+	return path_reconstruct(&parents, start, goal, path)
+}
+
+path_reconstruct :: proc(
+	parents: ^[MAP_HEIGHT][MAP_WIDTH]Tile_Coord,
+	start, goal: Tile_Coord,
+	path: ^Path,
+) -> bool {
 	rev: [MAX_PATH]Tile_Coord
 	rev_count := 0
 	cur := goal
+
 	for {
-		rev[rev_count] = cur
-		rev_count += 1
-		if cur == start {
-			break
-		}
-		cur = parents[cur.y][cur.x] // walk backward through the parent chain toward start
 		if rev_count >= MAX_PATH {
 			return false
 		}
+
+		rev[rev_count] = cur
+		rev_count += 1
+
+		if cur == start {
+			break
+		}
+
+		cur = parents[cur.y][cur.x]
 	}
 
-	path.tiles = make([]Tile_Coord, rev_count) // allocate output slice since path_clear left it nil
+	resize(&path.tiles, rev_count)
 	path.count = rev_count
+
 	for i in 0 ..< rev_count {
-		path.tiles[i] = rev[rev_count - 1 - i] // reverse the collected tiles so order is start -> goal
+		path.tiles[i] = rev[rev_count - 1 - i]
 	}
+
 	return true
 }
 
