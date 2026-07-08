@@ -2,10 +2,32 @@ package main
 
 import rl "vendor:raylib"
 
+Tile_Def :: struct {
+	name:      cstring,
+	color:     rl.Color,
+	walkable:  bool,
+	move_cost: int,
+}
+
 Tilemap :: struct {
 	width:  int,
 	height: int,
 	tiles:  []u8,
+}
+
+TILE_DEFS: [TILE_COUNT]Tile_Def = {
+	0 = {name = "grass", color = {72, 112, 68, 255}, walkable = true, move_cost = 10},
+	1 = {name = "wall", color = {90, 90, 95, 255}, walkable = false, move_cost = 0},
+	2 = {name = "road", color = {120, 100, 70, 255}, walkable = true, move_cost = 1},
+	3 = {name = "mud", color = {60, 55, 40, 255}, walkable = true, move_cost = 20},
+	4 = {name = "water", color = {50, 90, 140, 255}, walkable = false, move_cost = 0},
+}
+
+tile_def :: proc(type_id: u8) -> ^Tile_Def {
+	if int(type_id) >= TILE_COUNT {
+		return &TILE_DEFS[TILE_GRASS]
+	}
+	return &TILE_DEFS[type_id]
 }
 
 tilemap_init :: proc() -> Tilemap {
@@ -34,6 +56,21 @@ tilemap_destroy :: proc(tilemap: ^Tilemap) {
 	delete(tilemap.tiles)
 }
 
+tilemap_get :: proc(tilemap: ^Tilemap, x, y: int) -> u8 {
+	if !tile_in_bounds(tilemap, x, y) {
+		return TILE_WALL
+	}
+
+	return tilemap.tiles[tile_index(tilemap, x, y)]
+}
+
+tilemap_set :: proc(tilemap: ^Tilemap, x, y: int, type_id: u8) {
+	if !tile_in_bounds(tilemap, x, y) {
+		return
+	}
+	tilemap.tiles[tile_index(tilemap, x, y)] = type_id
+}
+
 tile_in_bounds :: proc(tilemap: ^Tilemap, x: int, y: int) -> bool {
 	// learning from another game, this will become handy
 	return x >= 0 && x < tilemap.width && y >= 0 && y < tilemap.height
@@ -41,22 +78,6 @@ tile_in_bounds :: proc(tilemap: ^Tilemap, x: int, y: int) -> bool {
 
 tile_index :: proc(tilemap: ^Tilemap, x, y: int) -> int {
 	return y * tilemap.width + x
-}
-
-tile_color :: proc(type_id: u8) -> rl.Color {
-	// going to make this a table at some point but for now, we do this
-	switch type_id {
-	case 0:
-		return {72, 112, 68, 255}
-	case 1:
-		return {90, 90, 95, 255} // wall — gray
-	case 2:
-		return {160, 140, 100, 255} // road — tan/brown
-	case 3:
-		return {120, 100, 70, 255} // mud — darker brown
-	case:
-		return rl.MAGENTA
-	}
 }
 
 tilemap_draw_selection :: proc(tilemap: ^Tilemap, cam: ^Camera2D, selection: ^Selection) {
@@ -97,24 +118,23 @@ tilemap_draw :: proc(tilemap: ^Tilemap, camera: ^Camera2D) {
 
 tile_walkable :: proc(tilemap: ^Tilemap, x, y: int) -> bool {
 	if !tile_in_bounds(tilemap, x, y) {return false}
-	idx := tile_index(tilemap, x, y)
+	def := tile_def(tilemap_get(tilemap, x, y))
 
-	return tilemap.tiles[idx] != 1
+	return def.walkable
 }
 
 tile_cost :: proc(tm: ^Tilemap, x, y: int) -> int {
-	if !tile_walkable(tm, x, y) {
+	if !tile_in_bounds(tm, x, y) {
 		return max_path_int
 	}
-	switch tm.tiles[tile_index(tm, x, y)] {
-	case 0:
-		return 10
-	case 2:
-		return 1
-	case 3:
-		return 20
-	case:
-		return 10
+	def := tile_def(tilemap_get(tm, x, y))
+	if !def.walkable {
+		return max_path_int
 	}
+	return def.move_cost
+}
+
+tile_color :: proc(type_id: u8) -> rl.Color {
+	return tile_def(type_id).color
 }
 

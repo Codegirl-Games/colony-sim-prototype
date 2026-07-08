@@ -88,6 +88,7 @@ entity_set_move_target :: proc(
 
 	start := ew.position[i]
 	if !pathfind_astar(tm, start, target, &ew.path[i]) {
+		ew.move_state[i] = .Idle
 		return false
 	}
 	ew.path_index[i] = 1
